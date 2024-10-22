@@ -10,13 +10,18 @@ from dash.dependencies import Input,Output
 from dash import dash_table
 import io
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
-url='https://raw.githubusercontent.com/DuaneIndustries/WestchesterRecycling/refs/heads/main/WestchesterCounty_v1.csv'
+
+# sheet_id = "1K5W7XFm7JVIG9d7j6RuK37AaH-0h6mNRH0fTUhKyo58”
+# sheet_name = "Data”
+# url = f”https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
+
+url='https://raw.githubusercontent.com/DuaneIndustries/WestchesterRecycling/refs/heads/main/WestchesterCounty_v2.csv'
 s=requests.get(url).content
 df=pd.read_csv(io.StringIO(s.decode('utf-8')))
 
-# df = pd.read_csv("/Users/caseyleo/Desktop/DCO_2024_Calendar_v1.csv")
+# df = pd.read_csv("/Users/caseyleo/Desktop/Colonial_Coffee_Gantt_3.csv")
 
 
 
@@ -31,7 +36,7 @@ df = df.sort_values(by='Start Date',ascending=False)
 dff = df
 
 # Determine the start of each week
-start_dates = pd.date_range(start='2024-08-12', end='2025-1-31', freq='W-MON')
+start_dates = pd.date_range(start='2024-02-16', end='2024-04-26', freq='W-MON')
 
 # Create a DataFrame with start dates of each week
 week_markers = pd.DataFrame({'Start Date': start_dates, 'Week_Start': True})
@@ -46,33 +51,28 @@ server=app.server
 
 
 app.layout = html.Div([
-    html.H1('Duane & Company Schedule', style={'color': 'green', 'fontSize': 40,'textAlign': 'center'}),
+    html.H1('Westchester Recycling : Actuator and Controls Installation', style={'color': 'black', 'fontSize': 40,'textAlign': 'center'}),
     html.Div(children=[
-        dcc.Dropdown([x for x in sorted(dff['Project'].unique())],
+        dcc.Dropdown([x for x in sorted(dff['Project Section'].unique())],
                               value=[],
-                             placeholder = "Select a project",
                              clearable=False,
                              multi=True,
                              style={'width':'65%'},
                              id='section-dropdown'),
         dcc.DatePickerRange(
             id='date-picker-range',
-            start_date="2024-10-21",
-            end_date="2025-3-31",
+            start_date=date(2024,6,17),
+            end_date=date(2025,3,31),
             style={'display': 'inline-block', 'float': 'right'}
         ),
-        dcc.Dropdown([x for x in sorted(dff['Crew'].unique())],
-                     value=[],
-                     placeholder = "Select a Crewmember",
-                     clearable=False,
-                     multi=True,
-                     style={'width':'65%', 'margin-top': '10px' },
-                     id='crew-selector'),
-    ],),
+    ]),
     html.H3('hover over bars for additional detail', style={'color': 'dimgray', 'fontSize': 15,}),
+
     html.Br(),
     html.Div(id='gantt-container'),
     html.Br(),
+    # html.Div(id='sunburst-container'),
+    # html.Br(),
     html.Div([
         dash_table.DataTable(
             id='datatable-interactivity',
@@ -80,15 +80,7 @@ app.layout = html.Div([
             columns=[
                 {"name": i, "id": i, "deletable": False, "selectable": False} for i in dff.columns
             ],
-            editable=True,
-            dropdown={
-                'Crew':{
-                    'options':[
-                        {'label':i,'value':i}
-                        for i in df['Crew'].unique()
-                    ],
-                }
-            },
+            editable=False,
             filter_action="native",
             sort_action="native",
             sort_mode="multi",
@@ -106,22 +98,16 @@ app.layout = html.Div([
 @app.callback(
     Output('datatable-interactivity', 'data'),
     [Input('section-dropdown', 'value'),
-     # Input('week-selector', 'value'),
-     Input('crew-selector','value'),
-     Input('date-picker-range','start_date'),
-     Input('date-picker-range','end_date')
-     ]
+     Input('date-picker-range', 'start_date'),
+     Input('date-picker-range','end_date')]
 )
-def update_table(section_value, crew_value, start_date, end_date):
+
+def update_table(section_value, start_date, end_date):
     dff = df.copy()
 
     # Filter by section dropdown
     if section_value:
-        dff = dff[dff['Project'].isin(section_value)]
-
-    # Filter by crew
-    if crew_value:
-        dff = dff[dff['Crew'].isin(crew_value)]
+        dff = dff[dff['Project Section'].isin(section_value)]
 
     # Filter by date range
     if start_date and end_date:
@@ -134,6 +120,9 @@ def update_table(section_value, crew_value, start_date, end_date):
 #Gantt Chart
 
 @app.callback(
+#     Output('ganttchart', 'children'),
+#     Input('datatable_id', 'selected_rows'),
+#     Input("section-dropdown", "value")
      Output(component_id='gantt-container', component_property='children'),
      [Input(component_id='datatable-interactivity', component_property="derived_virtual_data"),
       Input(component_id='datatable-interactivity', component_property='derived_virtual_selected_rows'),
@@ -169,28 +158,34 @@ def update_gantt(all_rows_data, slctd_row_indices, slct_rows_names, slctd_rows,
             data_frame=dff,
             x_start="Start Date",
             x_end="End Date",
-            y="Project",
-            color='Crew',
+            y="Task",
+            color='Project Section',
             hover_name='Task',
-            hover_data={'Crew':True,'Project':True,'Pattern':False,'Completion PCT':True,'Task':False},
-            category_orders={"Project": ["White", "Stack Street", "Cadillac", "Tierra Farm"]},
-            color_continuous_scale='algae',
+            hover_data={'Crew':True,'Project Section':True,'Pattern':False,'Completion PCT':True,'Task':False},
+            category_orders={"Project Section": ["Project Coordination", "Procurement", "Installation", "Programming", "Start up"]},
+            color_continuous_scale='blackbody',
             color_continuous_midpoint=50,
             opacity=.5,
         ).update_layout(
-            paper_bgcolor='gainsboro',
-            plot_bgcolor='gainsboro',
+            paper_bgcolor='whitesmoke',
+            plot_bgcolor='whitesmoke',
             hovermode="closest",
             xaxis_title="Schedule",
             yaxis_title="Task",
             showlegend=True,
             title_font_size=24,
-            font_color='black',
+            font_color='dimgray',
             hoverlabel=dict(
-                bgcolor='lawngreen',
+                bgcolor='gold',
                 font_size=9,)
         ).update_traces(line_dash='dot', selector=dict(Highlight=True)))
     return [fig]
+
+#Sunburst
+# @app.callback(
+#     Output=component
+#
+# )
 
 
 if __name__ == '__main__':
